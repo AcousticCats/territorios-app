@@ -5,16 +5,18 @@
   <title>Controle de Territórios</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
 
+  <!-- CSS -->
   <link rel="stylesheet" href="styles.css" />
 
-  <!-- Firebase compat -->
+  <!-- Firebase (carregado UMA ÚNICA VEZ) -->
   <script src="https://www.gstatic.com/firebasejs/10.13.1/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.13.1/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.13.1/firebase-firestore-compat.js"></script>
 
-  <!-- Seu script principal (carrega após o DOM, evitando tela branca) -->
+  <!-- Seu script principal (carregado UMA ÚNICA VEZ) -->
   <script src="app.js" defer></script>
 </head>
+
 <body>
   <div id="app">
 
@@ -24,25 +26,29 @@
       <p>Carregando aplicativo...</p>
     </div>
 
-    <!-- TELA MODO -->
+    <!-- TELA DE MODO (ADMIN OU PUBLICADOR) -->
     <div id="mode-screen" class="screen centered hidden">
       <h1 class="app-title">Controle de Territórios</h1>
       <p class="subtitle">Escolha como deseja entrar:</p>
 
-      <button id="btn-admin-login" class="btn primary full">Entrar como Ancião (Google)</button>
+      <button id="btn-admin-login" class="btn primary full">
+        Entrar como Ancião (Google)
+      </button>
 
       <div class="divider"><span>ou</span></div>
 
       <div class="card">
         <h2>Convite recebido?</h2>
-        <p>Digite o código ou abra o link enviado pelo ancião.</p>
-        <input id="invite-code-input" class="input" placeholder="Cole aqui o link ou código da congregação" />
-        <input id="guest-name-input" class="input" placeholder="Seu nome para registrar nos territórios" />
-        <button id="btn-guest-enter" class="btn secondary full">Entrar como publicador</button>
+        <p>Cole o link de convite e digite seu nome.</p>
+        <input id="invite-code-input" class="input" placeholder="Link ou código da congregação" />
+        <input id="guest-name-input" class="input" placeholder="Seu nome" />
+        <button id="btn-guest-enter" class="btn secondary full">
+          Entrar como Publicador
+        </button>
       </div>
 
       <p class="hint">
-        Dica: o ancião deve entrar primeiro com Google para criar a congregação e gerar o link de convite.
+        O ancião precisa criar a congregação primeiro fazendo login com Google.
       </p>
     </div>
 
@@ -50,11 +56,11 @@
     <div id="first-cong-modal" class="modal-backdrop hidden">
       <div class="modal">
         <h2>Bem-vindo!</h2>
-        <p>Escolha o nome da sua congregação. Você poderá mudar depois.</p>
+        <p>Escolha o nome da sua congregação.</p>
         <input id="first-cong-name" class="input" placeholder="Ex: Congregação Sul Pelotas" />
         <div class="modal-actions">
           <button id="btn-first-cong-cancel" class="btn ghost">Cancelar</button>
-          <button id="btn-first-cong-save" class="btn primary">Salvar e criar territórios</button>
+          <button id="btn-first-cong-save" class="btn primary">Criar</button>
         </div>
       </div>
     </div>
@@ -62,8 +68,8 @@
     <!-- MODAL OBSERVAÇÕES -->
     <div id="notes-modal" class="modal-backdrop hidden">
       <div class="modal">
-        <h2>Observações do Território <span id="notes-territory-label"></span></h2>
-        <textarea id="notes-text" class="textarea" rows="6" placeholder="Anote detalhes importantes deste território..."></textarea>
+        <h2>Observações — Território <span id="notes-territory-label"></span></h2>
+        <textarea id="notes-text" class="textarea" rows="6"></textarea>
         <div class="modal-actions">
           <button id="btn-notes-cancel" class="btn ghost">Fechar</button>
           <button id="btn-notes-save" class="btn primary">Salvar</button>
@@ -75,18 +81,20 @@
     <div id="map-modal" class="modal-backdrop hidden">
       <div class="modal modal-map">
         <div class="modal-map-header">
-          <h2>Mapa do Território <span id="map-territory-label"></span></h2>
+          <h2>Mapa — Território <span id="map-territory-label"></span></h2>
           <button id="btn-map-close" class="icon-button">&times;</button>
         </div>
+
         <div class="map-container">
-          <img id="map-image" alt="Mapa do território" />
+          <img id="map-image" alt="Mapa" />
           <canvas id="map-canvas"></canvas>
         </div>
+
         <div class="map-tools">
           <button id="btn-map-clear" class="btn danger small">Apagar rabiscos</button>
           <button id="btn-map-google" class="btn secondary small">Google Maps</button>
           <button id="btn-map-config" class="btn ghost small">Configurar</button>
-          <button id="btn-map-save" class="btn primary small">Salvar rabiscos</button>
+          <button id="btn-map-save" class="btn primary small">Salvar</button>
         </div>
       </div>
     </div>
@@ -95,10 +103,11 @@
     <div id="map-config-modal" class="modal-backdrop hidden">
       <div class="modal">
         <h2>Configurações do Mapa</h2>
-        <p class="small">Digite a senha de admin para editar (padrão: 1234).</p>
-        <input id="map-config-password" type="password" class="input" placeholder="Senha do admin" />
-        <input id="map-config-image-url" class="input" placeholder="URL da imagem do mapa" />
-        <input id="map-config-google-url" class="input" placeholder="Link do Google Maps" />
+        <p class="small">Senha do admin é necessária (padrão: 1234)</p>
+        <input id="map-config-password" type="password" class="input" placeholder="Senha admin" />
+        <input id="map-config-image-url" class="input" placeholder="URL da Imagem" />
+        <input id="map-config-google-url" class="input" placeholder="URL do Google Maps" />
+
         <div class="modal-actions">
           <button id="btn-map-config-cancel" class="btn ghost">Cancelar</button>
           <button id="btn-map-config-save" class="btn primary">Salvar</button>
@@ -106,19 +115,19 @@
       </div>
     </div>
 
-    <!-- MODAL INVITE -->
+    <!-- MODAL CONVITE -->
     <div id="invite-modal" class="modal-backdrop hidden">
       <div class="modal">
         <h2>Convidar Publicadores</h2>
-        <p>Envie este link para que os publicadores entrem na sua congregação:</p>
+        <p>Envie este link:</p>
         <input id="invite-link-input" class="input" readonly />
         <button id="btn-copy-invite" class="btn secondary full">Copiar link</button>
 
         <p class="qr-title">QR Code:</p>
-        <img id="invite-qr-image" class="qr-image" alt="QR Code do convite" />
+        <img id="invite-qr-image" class="qr-image" />
 
         <div class="modal-actions">
-          <button id="btn-invite-whatsapp" class="btn primary">Enviar por WhatsApp</button>
+          <button id="btn-invite-whatsapp" class="btn primary">Enviar no WhatsApp</button>
           <button id="btn-invite-close" class="btn ghost">Fechar</button>
         </div>
       </div>
@@ -131,26 +140,22 @@
           <h1>Controle de Territórios</h1>
           <p id="header-cong-name" class="cong-name"></p>
         </div>
-        <div class="user-badge">
-          <span id="header-user-initials">S</span>
-        </div>
+        <div class="user-badge"><span id="header-user-initials">S</span></div>
       </header>
 
-      <!-- ABAS -->
       <nav class="tabs">
-        <button data-tab="territories" class="tab-button active">Territórios</button>
-        <button data-tab="reports" class="tab-button">Relatórios</button>
-        <button data-tab="settings" class="tab-button">Configurar</button>
+        <button class="tab-button active" data-tab="territories">Territórios</button>
+        <button class="tab-button" data-tab="reports">Relatórios</button>
+        <button class="tab-button" data-tab="settings">Configurar</button>
       </nav>
 
-      <!-- CONTEÚDOS -->
       <main class="tab-content">
 
         <!-- ABA TERRITÓRIOS -->
         <section id="tab-territories" class="tab-panel active">
           <div class="filters">
             <button class="chip chip-filter active" data-filter="all">Todos</button>
-            <button class="chip chip-filter" data-filter="in_use">Em uso</button>
+            <button class="chip chip-filter" data-filter="in_use">Em Uso</button>
             <button class="chip chip-filter" data-filter="free">Livres</button>
             <button class="chip chip-filter" data-filter="less_used">Menos usados</button>
           </div>
@@ -161,17 +166,20 @@
         <!-- ABA RELATÓRIOS -->
         <section id="tab-reports" class="tab-panel">
           <div class="card">
-            <h2>Relatórios de Movimentação</h2>
+            <h2>Relatórios</h2>
+
             <div class="reports-header">
               <select id="reports-month-select" class="input"></select>
-              <button id="btn-reports-print" class="btn secondary small">Imprimir / PDF</button>
+              <button id="btn-reports-print" class="btn secondary small">
+                Imprimir / PDF
+              </button>
             </div>
 
             <div class="table-card">
               <table class="table">
                 <thead>
                   <tr>
-                    <th>Data / Hora</th>
+                    <th>Data/Hora</th>
                     <th>Território</th>
                     <th>Publicador</th>
                     <th>Ação</th>
@@ -183,21 +191,23 @@
           </div>
         </section>
 
-        <!-- ABA CONFIGURAÇÕES -->
+        <!-- ABA CONFIG -->
         <section id="tab-settings" class="tab-panel">
+
           <div class="card">
             <h2>Seu Perfil</h2>
             <input id="profile-name-input" class="input" placeholder="Seu nome" />
-            <button id="btn-save-profile-name" class="btn primary small">Salvar nome</button>
+            <button id="btn-save-profile-name" class="btn primary small">Salvar</button>
           </div>
 
           <div id="admin-only-settings" class="admin-section hidden">
+
             <div class="card">
-              <h2>Configurações Gerais</h2>
-              <label class="label">Nome da Congregação</label>
+              <h2>Geral (Admin)</h2>
+              <label>Nome da Congregação</label>
               <input id="settings-cong-name" class="input" />
 
-              <label class="label">Senha Admin</label>
+              <label>Senha Admin</label>
               <input id="settings-admin-password" type="password" class="input" />
 
               <button id="btn-save-admin-settings" class="btn primary small">Salvar</button>
@@ -210,19 +220,22 @@
                 <span id="territory-count-label">25</span>
                 <button id="btn-territory-plus" class="btn circle">+</button>
               </div>
-              <button id="btn-save-territory-count" class="btn secondary small">Salvar quantidade</button>
+              <button id="btn-save-territory-count" class="btn secondary small">
+                Salvar quantidade
+              </button>
             </div>
 
             <div class="card">
               <h2>Convidar Publicadores</h2>
-              <button id="btn-open-invite" class="btn primary small">Gerar link</button>
+              <button id="btn-open-invite" class="btn primary small">Gerar Link</button>
             </div>
           </div>
 
           <div class="card">
             <h2>Sair</h2>
-            <button id="btn-logout" class="btn danger small">Sair do aplicativo</button>
+            <button id="btn-logout" class="btn danger small">Sair</button>
           </div>
+
         </section>
 
       </main>
