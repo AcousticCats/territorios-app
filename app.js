@@ -1,32 +1,28 @@
 // app.js - Controle de Territórios
 
 // Configuração do Firebase
-// Firebase configuration generated from the Firebase console (see project settings).
-// Measurement ID is included for analytics; remove if not needed.
 const firebaseConfig = {
-  apiKey: "AIzaSyAgC7Kij9qrnq2CHzzMTRefp01jpdxGYiU",
-  authDomain: "controle-territ.firebaseapp.com",
-  projectId: "controle-territ",
-  storageBucket: "controle-territ.firebasestorage.app",
-  messagingSenderId: "669171529346",
-  appId: "1:669171529346:web:2a1a40afa0e3b58c28e69b",
-  measurementId: "G-VTKRFWLERS"
+  apiKey: "SUA_API_KEY",
+  authDomain: "SEU_DOMINIO.firebaseapp.com",
+  projectId: "SEU_PROJETO_ID",
+  storageBucket: "SEU_PROJETO_ID.appspot.com",
+  messagingSenderId: "SEU_SENDER_ID",
+  appId: "SEU_APP_ID"
 };
 
-// Inicializa Firebase (se a configuração estiver completa)
+// Inicializa Firebase (sempre que a configuração estiver definida)
 let firebaseApp = null;
 let auth = null;
 let db = null;
 
 try {
-  if (firebaseConfig.apiKey && firebaseConfig.apiKey !== "SUA_API_KEY") {
-    firebaseApp = firebase.initializeApp(firebaseConfig);
-    auth = firebase.auth();
-    db = firebase.firestore();
-    console.log("Firebase inicializado com sucesso");
-  } else {
-    console.warn("Firebase não configurado. Configure suas credenciais em firebaseConfig.");
-  }
+  // Sempre inicializa o Firebase usando a configuração fornecida. A validação de
+  // "SUA_API_KEY" foi removida para evitar que a aplicação pare caso os valores
+  // sejam alterados manualmente no código. Quaisquer erros serão capturados no catch.
+  firebaseApp = firebase.initializeApp(firebaseConfig);
+  auth = firebase.auth();
+  db = firebase.firestore();
+  console.log("Firebase inicializado com sucesso");
 } catch (error) {
   console.error("Erro ao inicializar Firebase:", error);
 }
