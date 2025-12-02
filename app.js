@@ -12,55 +12,31 @@ const firebaseConfig = {
   measurementId: "G-VTKRFWLERS",
 };
 
-// Inicializa Firebase
 firebase.initializeApp(firebaseConfig);
 const auth = firebase.auth();
 const db = firebase.firestore();
 
-// ===============
-// VARIÁVEIS GLOBAIS
-// ===============
-
-let currentUser = null; // objeto auth
-let currentRole = null; // "admin" ou "guest"
-let currentCongregationId = null;
-let currentCongregation = null;
-let territoriesUnsubscribe = null;
-let movementsUnsubscribe = null;
-let currentFilter = "all";
-let drawing = false;
-let mapCanvas, mapCtx;
-let profileName = localStorage.getItem("territorios_profile_name") || "";
-
-// MAPA: território atual / doc atual
-let currentMapTerritoryId = null;
-let currentMapTerritoryData = null;
-
-// ==================
-// FUNÇÕES DE AJUDA
-// ==================
+// ======================
+// UTILIDADES
+// ======================
 
 function $(id) {
   return document.getElementById(id);
 }
 
-function showScreen(id) {
-  const screens = document.querySelectorAll(".screen");
-  screens.forEach((s) => s.classList.add("hidden"));
-  $(id).classList.remove("hidden");
+function showScreen(screenId) {
+  document.querySelectorAll(".screen").forEach((s) => s.classList.add("hidden"));
+  const el = $(screenId);
+  if (el) el.classList.remove("hidden");
 }
 
 function setTab(tab) {
-  document
-    .querySelectorAll(".tab-button")
-    .forEach((btn) =>
-      btn.classList.toggle("active", btn.dataset.tab === tab)
-    );
-  document
-    .querySelectorAll(".tab-panel")
-    .forEach((panel) =>
-      panel.classList.toggle("active", panel.id === "tab-" + tab)
-    );
+  document.querySelectorAll(".tab-button").forEach((btn) => {
+    btn.classList.toggle("active", btn.dataset.tab === tab);
+  });
+  document.querySelectorAll(".tab-panel").forEach((panel) => {
+    panel.classList.toggle("active", panel.id === `tab-${tab}`);
+  });
 }
 
 function getUrlParam(name) {
@@ -94,31 +70,51 @@ function initialsFromName(name) {
 }
 
 // ======================
-// FLUXO DE INICIALIZAÇÃO
+// ESTADO GLOBAL
+// ======================
+
+let currentUser = null;          // auth user
+let currentRole = null;          // "admin" | "guest"
+let currentCongregationId = null;
+let currentCongregation = null;
+
+let territoriesUnsub = null;
+let movementsUnsub = null;
+
+let territoriesCache = [];
+let movementsCache = [];
+let currentFilter = "all";
+
+let profileName = localStorage.getItem("territorios_profile_name") || "";
+
+// mapa / desenho
+let mapCanvas = null;
+let mapCtx = null;
+let drawing = false;
+let currentMapTerritory = null;
+
+// notas
+let currentNotesTerritory = null;
+
+// ======================
+// INICIALIZAÇÃO
 // ======================
 
 window.addEventListener("load", () => {
-  // Elementos básicos
-  const loadingScreen = $("loading-screen");
-  const modeScreen = $("mode-screen");
-  const mainScreen = $("main-screen");
-  const headerCongName = $("header-cong-name");
-  const headerUserInitials = $("header-user-initials");
+  const headerInitials = $("header-user-initials");
+  const profileInput = $("profile-name-input");
 
-  // Preenche nome de perfil se existir
   if (profileName) {
-    $("profile-name-input").value = profileName;
-    headerUserInitials.textContent = initialsFromName(profileName);
+    profileInput.value = profileName;
+    headerInitials.textContent = initialsFromName(profileName);
   }
 
   // Tabs
   document.querySelectorAll(".tab-button").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      setTab(btn.dataset.tab);
-    });
+    btn.addEventListener("click", () => setTab(btn.dataset.tab));
   });
 
-  // Filtros
+  // Filtros de territórios
   document.querySelectorAll(".chip-filter").forEach((chip) => {
     chip.addEventListener("click", () => {
       document
@@ -130,52 +126,13 @@ window.addEventListener("load", () => {
     });
   });
 
-  // Botões de modo
-  $("btn-admin-login").addEventListener("click", handleAdminLoginClick);
-  $("btn-guest-enter").addEventListener("click", handleGuestEnterClick);
+  // Botões principais
+  $("btn-admin-login").addEventListener("click", handleAdminLogin);
+  $("btn-guest-enter").addEventListener("click", handleGuestEnter);
+  $("btn-save-profile-name").addEventListener("click", saveProfileName);
+  $("btn-logout").addEventListener("click", handleLogout);
 
-  // Perfil
-  $("btn-save-profile-name").addEventListener("click", () => {
-    const name = $("profile-name-input").value.trim();
-    if (!name) {
-      alert("Digite seu nome.");
-      return;
-    }
-    profileName = name;
-    localStorage.setItem("territorios_profile_name", name);
-    headerUserInitials.textContent = initialsFromName(name);
-    alert("Nome salvo.");
-  });
-
-  // Relatórios
-  $("btn-reports-print").addEventListener("click", () => {
-    window.print();
-  });
-
-  // Logout
-  $("btn-logout").addEventListener("click", async () => {
-    await auth.signOut();
-    currentUser = null;
-    currentRole = null;
-    currentCongregationId = null;
-    currentCongregation = null;
-    if (territoriesUnsubscribe) territoriesUnsubscribe();
-    if (movementsUnsubscribe) movementsUnsubscribe();
-    showScreen("mode-screen");
-  });
-
-  // Admin settings
-  $("btn-save-admin-settings").addEventListener("click", saveAdminSettings);
-  $("btn-territory-minus").addEventListener("click", () =>
-    adjustTerritoryCount(-1)
-  );
-  $("btn-territory-plus").addEventListener("click", () =>
-    adjustTerritoryCount(1)
-  );
-  $("btn-save-territory-count").addEventListener("click", saveTerritoryCount);
-  $("btn-open-invite").addEventListener("click", openInviteModal);
-
-  // Primeira congregação modal
+  // Primeira congregação
   $("btn-first-cong-cancel").addEventListener("click", () => {
     $("first-cong-modal").classList.add("hidden");
     auth.signOut();
@@ -186,47 +143,19 @@ window.addEventListener("load", () => {
   // Notas
   $("btn-notes-cancel").addEventListener("click", () => {
     $("notes-modal").classList.add("hidden");
+    currentNotesTerritory = null;
   });
   $("btn-notes-save").addEventListener("click", saveNotes);
 
-  // Map modal
-  mapCanvas = $("map-canvas");
-  mapCtx = mapCanvas.getContext("2d");
+  // Relatórios
+  $("btn-reports-print").addEventListener("click", () => window.print());
 
-  $("btn-map-close").addEventListener("click", () => {
-    $("map-modal").classList.add("hidden");
-  });
-  $("btn-map-clear").addEventListener("click", clearMapDrawing);
-  $("btn-map-save").addEventListener("click", saveMapDrawing);
-  $("btn-map-google").addEventListener("click", () => {
-    if (currentMapTerritoryData && currentMapTerritoryData.googleMapsUrl) {
-      window.open(currentMapTerritoryData.googleMapsUrl, "_blank");
-    } else {
-      alert("Nenhum link do Google Maps configurado para este território.");
-    }
-  });
-  $("btn-map-config").addEventListener("click", () => {
-    if (currentRole !== "admin") {
-      alert("Somente o admin pode configurar o mapa.");
-      return;
-    }
-    openMapConfigModal();
-  });
-
-  // Desenho no mapa
-  mapCanvas.addEventListener("mousedown", startDrawing);
-  mapCanvas.addEventListener("mousemove", draw);
-  mapCanvas.addEventListener("mouseup", stopDrawing);
-  mapCanvas.addEventListener("mouseleave", stopDrawing);
-  mapCanvas.addEventListener("touchstart", startDrawing, { passive: false });
-  mapCanvas.addEventListener("touchmove", draw, { passive: false });
-  mapCanvas.addEventListener("touchend", stopDrawing, { passive: false });
-
-  // Map config modal
-  $("btn-map-config-cancel").addEventListener("click", () => {
-    $("map-config-modal").classList.add("hidden");
-  });
-  $("btn-map-config-save").addEventListener("click", saveMapConfig);
+  // Admin settings
+  $("btn-save-admin-settings").addEventListener("click", saveAdminSettings);
+  $("btn-territory-minus").addEventListener("click", () => adjustTerritoryCount(-1));
+  $("btn-territory-plus").addEventListener("click", () => adjustTerritoryCount(1));
+  $("btn-save-territory-count").addEventListener("click", saveTerritoryCount);
+  $("btn-open-invite").addEventListener("click", openInviteModal);
 
   // Invite modal
   $("btn-invite-close").addEventListener("click", () => {
@@ -237,95 +166,61 @@ window.addEventListener("load", () => {
     navigator.clipboard
       .writeText(link)
       .then(() => alert("Link copiado para a área de transferência."))
-      .catch(() =>
-        alert("Não foi possível copiar automaticamente. Copie manualmente.")
-      );
+      .catch(() => alert("Não foi possível copiar. Copie manualmente."));
   });
   $("btn-invite-whatsapp").addEventListener("click", () => {
     const link = $("invite-link-input").value;
-    const text = `Convite para o app de territórios da congregação: ${link}`;
-    window.open(
-      "https://wa.me/?text=" + encodeURIComponent(text),
-      "_blank"
-    );
+    const txt = `Convite para o app de territórios: ${link}`;
+    window.open("https://wa.me/?text=" + encodeURIComponent(txt), "_blank");
   });
 
-  // Territory count buttons etc já configurados acima
+  // Map modal
+  mapCanvas = $("map-canvas");
+  if (mapCanvas) {
+    mapCtx = mapCanvas.getContext("2d");
+
+    mapCanvas.addEventListener("mousedown", startDrawing);
+    mapCanvas.addEventListener("mousemove", drawOnCanvas);
+    mapCanvas.addEventListener("mouseup", stopDrawing);
+    mapCanvas.addEventListener("mouseleave", stopDrawing);
+    mapCanvas.addEventListener("touchstart", startDrawing, { passive: false });
+    mapCanvas.addEventListener("touchmove", drawOnCanvas, { passive: false });
+    mapCanvas.addEventListener("touchend", stopDrawing, { passive: false });
+  }
+
+  $("btn-map-close").addEventListener("click", () => {
+    $("map-modal").classList.add("hidden");
+    currentMapTerritory = null;
+  });
+  $("btn-map-clear").addEventListener("click", clearMapDrawing);
+  $("btn-map-save").addEventListener("click", saveMapDrawing);
+  $("btn-map-google").addEventListener("click", openMapGoogle);
+  $("btn-map-config").addEventListener("click", () => {
+    if (currentRole !== "admin") {
+      alert("Somente o ancião (admin) pode configurar o mapa.");
+      return;
+    }
+    openMapConfigModal();
+  });
+
+  // Config mapa
+  $("btn-map-config-cancel").addEventListener("click", () => {
+    $("map-config-modal").classList.add("hidden");
+  });
+  $("btn-map-config-save").addEventListener("click", saveMapConfig);
 
   // Auth listener
-  auth.onAuthStateChanged(async (user) => {
-    currentUser = user;
+  auth.onAuthStateChanged(handleAuthStateChanged);
 
-    const cidFromUrl = getUrlParam("cid");
-    if (!user) {
-      // Deslogado: mostra tela de modo (mestre ou convidado)
-      hideAllSubscriptions();
-      showScreen("mode-screen");
-      loadingScreen.classList.add("hidden");
-      modeScreen.classList.remove("hidden");
-      return;
-    }
-
-    // Usuário logado
-    if (user.isAnonymous) {
-      currentRole = "guest";
-      // Convidado sempre deve ter cid da URL
-      if (!cidFromUrl) {
-        alert("Convidado precisa acessar via link de convite com código.");
-        await auth.signOut();
-        return;
-      }
-      currentCongregationId = cidFromUrl;
-      await ensureGuestProfile();
-      await loadCongregation();
-      setupRealtimeData();
-      headerCongName.textContent = currentCongregation?.name || "";
-      setTab("territories");
-      showScreen("main-screen");
-      $("admin-only-settings").classList.add("hidden");
-      loadingScreen.classList.add("hidden");
-      return;
-    } else {
-      // Admin (Google)
-      currentRole = "admin";
-      $("admin-only-settings").classList.remove("hidden");
-
-      // Verifica se já existe congregação do admin
-      const congSnap = await db
-        .collection("congregations")
-        .where("ownerUid", "==", user.uid)
-        .limit(1)
-        .get();
-
-      if (congSnap.empty) {
-        // Primeira vez -> abrir modal para criar congregação
-        $("first-cong-modal").classList.remove("hidden");
-        showScreen("main-screen"); // tela de fundo
-        loadingScreen.classList.add("hidden");
-        return;
-      } else {
-        const doc = congSnap.docs[0];
-        currentCongregationId = doc.id;
-        currentCongregation = { id: doc.id, ...doc.data() };
-        headerCongName.textContent = currentCongregation.name || "";
-        $("settings-cong-name").value = currentCongregation.name || "";
-        $("settings-admin-password").value =
-          currentCongregation.adminPassword || "1234";
-        $("territory-count-label").textContent =
-          currentCongregation.territoryCount || 25;
-        setupRealtimeData();
-        showScreen("main-screen");
-        loadingScreen.classList.add("hidden");
-      }
-    }
-  });
+  // Começa na tela de carregamento
+  showScreen("loading-screen");
 });
 
-// =======================
-// LOGIN / GUEST ENTRADA
-// =======================
+// ======================
+// AUTH / LOGIN
+// ======================
 
-async function handleAdminLoginClick() {
+async function handleAdminLogin() {
   try {
     const provider = new firebase.auth.GoogleAuthProvider();
     await auth.signInWithPopup(provider);
@@ -335,74 +230,152 @@ async function handleAdminLoginClick() {
   }
 }
 
-async function handleGuestEnterClick() {
+async function handleGuestEnter() {
   const rawCode = $("invite-code-input").value.trim();
   const guestName = $("guest-name-input").value.trim();
 
   if (!rawCode) {
-    alert("Cole o link de convite ou código da congregação.");
+    alert("Cole o link ou código da congregação.");
     return;
   }
   if (!guestName) {
-    alert("Digite seu nome para entrar.");
+    alert("Digite seu nome.");
     return;
   }
 
-  // Extrai cid de um link completo ou código bruto
   let cid = rawCode;
-  const urlMatch = rawCode.match(/[?&]cid=([a-zA-Z0-9_-]+)/);
-  if (urlMatch) {
-    cid = urlMatch[1];
-  }
+  const match = rawCode.match(/[?&]cid=([a-zA-Z0-9_-]+)/);
+  if (match) cid = match[1];
 
-  // Salva nome localmente
+  // grava nome local
   profileName = guestName;
   localStorage.setItem("territorios_profile_name", guestName);
   $("profile-name-input").value = guestName;
   $("header-user-initials").textContent = initialsFromName(guestName);
 
-  // Atualiza URL do navegador com cid
+  // coloca cid na URL
   const url = new URL(window.location.href);
   url.searchParams.set("cid", cid);
   window.history.replaceState({}, "", url.toString());
 
   try {
-    // login anônimo
     await auth.signInAnonymously();
   } catch (err) {
     console.error(err);
-    alert(
-      "Erro ao entrar como convidado. Verifique se o login Anônimo está ativado no Firebase."
-    );
+    alert("Erro ao entrar como publicador: " + err.message);
   }
 }
 
-async function ensureGuestProfile() {
-  if (!currentUser || !currentUser.isAnonymous || !currentCongregationId)
+async function handleLogout() {
+  try {
+    await auth.signOut();
+  } catch (err) {
+    console.error(err);
+  }
+  clearRealtime();
+  currentUser = null;
+  currentRole = null;
+  currentCongregationId = null;
+  currentCongregation = null;
+  showScreen("mode-screen");
+}
+
+function clearRealtime() {
+  if (territoriesUnsub) territoriesUnsub();
+  if (movementsUnsub) movementsUnsub();
+  territoriesUnsub = null;
+  movementsUnsub = null;
+  territoriesCache = [];
+  movementsCache = [];
+}
+
+// ======================
+// AUTH STATE
+// ======================
+
+async function handleAuthStateChanged(user) {
+  const loading = $("loading-screen");
+  const adminSettings = $("admin-only-settings");
+  const headerCongName = $("header-cong-name");
+
+  currentUser = user;
+
+  if (!user) {
+    clearRealtime();
+    if (adminSettings) adminSettings.classList.add("hidden");
+    showScreen("mode-screen");
+    if (loading) loading.classList.add("hidden");
     return;
+  }
 
-  const memberRef = db
-    .collection("congregations")
-    .doc(currentCongregationId)
-    .collection("members")
-    .doc(currentUser.uid);
+  const cidFromUrl = getUrlParam("cid");
 
-  const doc = await memberRef.get();
-  if (!doc.exists) {
-    await memberRef.set({
-      uid: currentUser.uid,
-      name: profileName || "Publicador",
-      role: "publisher",
-      joinedAt: firebase.firestore.FieldValue.serverTimestamp(),
-    });
-  } else if (profileName && doc.data().name !== profileName) {
-    await memberRef.update({ name: profileName });
+  if (user.isAnonymous) {
+    // convidado
+    currentRole = "guest";
+    if (!cidFromUrl) {
+      alert("Link de convite inválido. Falta o código da congregação (cid).");
+      await auth.signOut();
+      return;
+    }
+
+    currentCongregationId = cidFromUrl;
+
+    await loadCongregation();
+    await ensureGuestMember();
+
+    if (headerCongName && currentCongregation) {
+      headerCongName.textContent = currentCongregation.name || "";
+    }
+
+    if (adminSettings) adminSettings.classList.add("hidden");
+    setupRealtime();
+    setTab("territories");
+    showScreen("main-screen");
+    if (loading) loading.classList.add("hidden");
+  } else {
+    // admin (Google)
+    currentRole = "admin";
+    if (adminSettings) adminSettings.classList.remove("hidden");
+
+    // procura congregação do dono
+    const snap = await db
+      .collection("congregations")
+      .where("ownerUid", "==", user.uid)
+      .limit(1)
+      .get();
+
+    if (snap.empty) {
+      // primeira vez
+      showScreen("main-screen");
+      $("first-cong-modal").classList.remove("hidden");
+      if (loading) loading.classList.add("hidden");
+      return;
+    }
+
+    const doc = snap.docs[0];
+    currentCongregationId = doc.id;
+    currentCongregation = { id: doc.id, ...doc.data() };
+
+    if (headerCongName) {
+      headerCongName.textContent = currentCongregation.name || "";
+    }
+    $("settings-cong-name").value = currentCongregation.name || "";
+    $("settings-admin-password").value =
+      currentCongregation.adminPassword || "1234";
+    $("territory-count-label").textContent =
+      currentCongregation.territoryCount || 25;
+
+    setupRealtime();
+    setTab("territories");
+    showScreen("main-screen");
+    if (loading) loading.classList.add("hidden");
   }
 }
 
-// =======================
-// CRIAÇÃO PRIMEIRA CONGREGAÇÃO
-// =======================
+// ======================
+// CONGREGAÇÃO
+// ======================
 
 async function createFirstCongregation() {
   const name = $("first-cong-name").value.trim();
@@ -438,11 +411,11 @@ async function createFirstCongregation() {
     $("settings-admin-password").value = "1234";
     $("territory-count-label").textContent = "25";
 
-    // Cria 25 territórios padrão
+    // cria 25 territórios
     const batch = db.batch();
     for (let i = 1; i <= 25; i++) {
-      const terrRef = congRef.collection("territories").doc(String(i));
-      batch.set(terrRef, {
+      const ref = congRef.collection("territories").doc(String(i));
+      batch.set(ref, {
         number: i,
         status: "FREE",
         lastTakenBy: null,
@@ -460,7 +433,7 @@ async function createFirstCongregation() {
     }
     await batch.commit();
 
-    setupRealtimeData();
+    setupRealtime();
     setTab("territories");
   } catch (err) {
     console.error(err);
@@ -468,29 +441,15 @@ async function createFirstCongregation() {
   }
 }
 
-// =======================
-// CARREGAR DADOS EM TEMPO REAL
-// =======================
-
-let territoriesCache = [];
-let movementsCache = [];
-
-function hideAllSubscriptions() {
-  if (territoriesUnsubscribe) territoriesUnsubscribe();
-  if (movementsUnsubscribe) movementsUnsubscribe();
-}
-
 async function loadCongregation() {
   if (!currentCongregationId) return;
-  const congDoc = await db
-    .collection("congregations")
-    .doc(currentCongregationId)
-    .get();
-  if (!congDoc.exists) {
+  const doc = await db.collection("congregations").doc(currentCongregationId).get();
+  if (!doc.exists) {
     alert("Congregação não encontrada. Verifique o link de convite.");
     return;
   }
-  currentCongregation = { id: congDoc.id, ...congDoc.data() };
+  currentCongregation = { id: doc.id, ...doc.data() };
+
   $("header-cong-name").textContent = currentCongregation.name || "";
   $("settings-cong-name").value = currentCongregation.name || "";
   $("settings-admin-password").value =
@@ -499,58 +458,103 @@ async function loadCongregation() {
     currentCongregation.territoryCount || 25;
 }
 
-function setupRealtimeData() {
+async function ensureGuestMember() {
+  if (!currentUser || !currentUser.isAnonymous || !currentCongregationId) return;
+
+  const memberRef = db
+    .collection("congregations")
+    .doc(currentCongregationId)
+    .collection("members")
+    .doc(currentUser.uid);
+
+  const doc = await memberRef.get();
+  if (!doc.exists) {
+    await memberRef.set({
+      uid: currentUser.uid,
+      name: profileName || "Publicador",
+      role: "publisher",
+      joinedAt: firebase.firestore.FieldValue.serverTimestamp(),
+    });
+  } else if (profileName && doc.data().name !== profileName) {
+    await memberRef.update({ name: profileName });
+  }
+}
+
+// ======================
+// TEMPO REAL
+// ======================
+
+function setupRealtime() {
+  clearRealtime();
   if (!currentCongregationId) return;
 
-  hideAllSubscriptions();
-
-  territoriesUnsubscribe = db
+  const terrCol = db
     .collection("congregations")
     .doc(currentCongregationId)
-    .collection("territories")
-    .where("active", "==", true)
-    .orderBy("number")
-    .onSnapshot((snap) => {
-      territoriesCache = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
-      renderTerritories();
-    });
+    .collection("territories");
 
-  movementsUnsubscribe = db
+  const movCol = db
     .collection("congregations")
     .doc(currentCongregationId)
-    .collection("movements")
+    .collection("movements");
+
+  territoriesUnsub = terrCol.orderBy("number").onSnapshot((snap) => {
+    territoriesCache = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+    renderTerritories();
+  });
+
+  movementsUnsub = movCol
     .orderBy("timestamp", "desc")
-    .limit(100)
+    .limit(200)
     .onSnapshot((snap) => {
       movementsCache = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
       renderReports();
     });
 }
 
-// ===============
-// RENDER TERRITÓRIOS
-// ===============
+// ======================
+// PERFIL
+// ======================
+
+function saveProfileName() {
+  const name = $("profile-name-input").value.trim();
+  if (!name) {
+    alert("Digite seu nome.");
+    return;
+  }
+  profileName = name;
+  localStorage.setItem("territorios_profile_name", name);
+  $("header-user-initials").textContent = initialsFromName(name);
+  alert("Nome salvo.");
+}
+
+// ======================
+// TERRITÓRIOS
+// ======================
 
 function renderTerritories() {
   const container = $("territories-list");
   container.innerHTML = "";
 
   if (!territoriesCache.length) {
-    container.innerHTML = "<p class='small'>Nenhum território cadastrado.</p>";
+    container.innerHTML =
+      "<p class='small'>Nenhum território cadastrado ainda.</p>";
     return;
   }
 
-  let list = [...territoriesCache];
+  let list = territoriesCache.filter((t) => t.active !== false);
 
   if (currentFilter === "in_use") {
     list = list.filter((t) => t.status === "IN_USE");
   } else if (currentFilter === "free") {
     list = list.filter((t) => t.status === "FREE");
   } else if (currentFilter === "less_used") {
-    list.sort((a, b) => (a.usageCount || 0) - (b.usageCount || 0));
+    list = [...list].sort(
+      (a, b) => (a.usageCount || 0) - (b.usageCount || 0)
+    );
   }
 
-  for (const terr of list) {
+  list.forEach((terr) => {
     const card = document.createElement("div");
     card.className = "territory-card";
 
@@ -562,12 +566,12 @@ function renderTerritories() {
     title.textContent = `Território ${terr.number}`;
 
     const status = document.createElement("div");
-    const isInUse = terr.status === "IN_USE";
+    const inUse = terr.status === "IN_USE";
     status.className =
-      "territory-status " + (isInUse ? "status-inuse" : "status-free");
+      "territory-status " + (inUse ? "status-inuse" : "status-free");
     status.innerHTML = `
       <span class="status-dot"></span>
-      <span>${isInUse ? "EM USO" : "LIVRE"}</span>
+      <span>${inUse ? "EM USO" : "LIVRE"}</span>
     `;
 
     header.appendChild(title);
@@ -575,15 +579,16 @@ function renderTerritories() {
 
     const meta = document.createElement("div");
     meta.className = "territory-meta";
+
     let metaText = "";
     if (terr.lastTakenBy && terr.lastTakenAt) {
-      metaText += `Pegado por: ${terr.lastTakenBy} em ${formatDateTime(
+      metaText += `Pegado por ${terr.lastTakenBy} em ${formatDateTime(
         terr.lastTakenAt
       )}`;
     }
     if (terr.lastReturnedBy && terr.lastReturnedAt) {
       metaText += metaText ? " · " : "";
-      metaText += `Devolvido por: ${terr.lastReturnedBy} em ${formatDateTime(
+      metaText += `Devolvido por ${terr.lastReturnedBy} em ${formatDateTime(
         terr.lastReturnedAt
       )}`;
     }
@@ -594,22 +599,20 @@ function renderTerritories() {
     actions.className = "territory-actions";
 
     const mainBtn = document.createElement("button");
-    mainBtn.className = "btn " + (isInUse ? "danger" : "primary");
-    mainBtn.textContent = isInUse ? "Devolver" : "Pegar";
+    mainBtn.className = "btn " + (inUse ? "danger" : "primary");
+    mainBtn.textContent = inUse ? "Devolver" : "Pegar";
     mainBtn.addEventListener("click", () =>
-      handleToggleTerritory(terr, !isInUse)
+      toggleTerritory(terr, !inUse)
     );
 
     const mapBtn = document.createElement("button");
     mapBtn.className = "btn secondary";
-    mapBtn.innerHTML = '<span class="button-icon">🗺️</span>';
-
+    mapBtn.innerHTML = "🗺️";
     mapBtn.addEventListener("click", () => openMapModal(terr));
 
     const notesBtn = document.createElement("button");
     notesBtn.className = "btn ghost";
-    notesBtn.innerHTML = '<span class="button-icon">💬</span>';
-
+    notesBtn.innerHTML = "💬";
     notesBtn.addEventListener("click", () => openNotesModal(terr));
 
     actions.appendChild(mainBtn);
@@ -627,26 +630,22 @@ function renderTerritories() {
     card.appendChild(actions);
 
     container.appendChild(card);
-  }
+  });
 }
 
-// =====================
-// PEGAR / DEVOLVER
-// =====================
-
-async function handleToggleTerritory(territory, willTake) {
+async function toggleTerritory(territory, willTake) {
   if (!currentCongregationId) return;
   if (!profileName) {
-    alert("Antes, salve seu nome em Configurar > Seu Perfil.");
+    alert("Antes salve seu nome em Configurar > Seu Perfil.");
     return;
   }
 
-  const action = willTake ? "Pegar" : "Devolver";
-  const confirmMsg = willTake
-    ? `Confirmar pegar o Território ${territory.number}?`
-    : `Confirmar devolver o Território ${territory.number}?`;
-
-  if (!confirm(confirmMsg)) return;
+  const actionText = willTake ? "pegar" : "devolver";
+  if (
+    !confirm(`Confirmar ${actionText} o Território ${territory.number}?`)
+  ) {
+    return;
+  }
 
   const terrRef = db
     .collection("congregations")
@@ -664,9 +663,8 @@ async function handleToggleTerritory(territory, willTake) {
     await db.runTransaction(async (tx) => {
       const terrDoc = await tx.get(terrRef);
       if (!terrDoc.exists) throw new Error("Território não encontrado.");
-
-      const now = firebase.firestore.FieldValue.serverTimestamp();
       const terrData = terrDoc.data();
+      const now = firebase.firestore.FieldValue.serverTimestamp();
 
       if (willTake) {
         tx.update(terrRef, {
@@ -701,11 +699,9 @@ async function handleToggleTerritory(territory, willTake) {
   }
 }
 
-// =====================
+// ======================
 // NOTAS
-// =====================
-
-let currentNotesTerritory = null;
+// ======================
 
 function openNotesModal(territory) {
   currentNotesTerritory = territory;
@@ -730,19 +726,19 @@ async function saveNotes() {
       hasNotes: !!text,
     });
     $("notes-modal").classList.add("hidden");
+    currentNotesTerritory = null;
   } catch (err) {
     console.error(err);
     alert("Erro ao salvar observações: " + err.message);
   }
 }
 
-// =====================
-// MAPA / DESENHO
-// =====================
+// ======================
+// MAPA
+// ======================
 
 function openMapModal(territory) {
-  currentMapTerritoryId = String(territory.number);
-  currentMapTerritoryData = territory;
+  currentMapTerritory = territory;
   $("map-territory-label").textContent = territory.number;
 
   const img = $("map-image");
@@ -751,27 +747,26 @@ function openMapModal(territory) {
     "https://via.placeholder.com/800x800.png?text=Mapa+do+Territ%C3%B3rio";
 
   img.onload = () => {
-    // dimensiona canvas igual à imagem
     mapCanvas.width = img.clientWidth;
     mapCanvas.height = img.clientHeight;
     mapCtx.clearRect(0, 0, mapCanvas.width, mapCanvas.height);
 
-    // se houver overlay salvo, desenha
     if (territory.overlayDataUrl) {
-      const overlayImg = new Image();
-      overlayImg.onload = () => {
-        mapCtx.drawImage(overlayImg, 0, 0, mapCanvas.width, mapCanvas.height);
+      const overlay = new Image();
+      overlay.onload = () => {
+        mapCtx.drawImage(overlay, 0, 0, mapCanvas.width, mapCanvas.height);
       };
-      overlayImg.src = territory.overlayDataUrl;
+      overlay.src = territory.overlayDataUrl;
     }
   };
 
   $("map-modal").classList.remove("hidden");
 }
 
-function getCanvasPos(evt) {
+function canvasPos(evt) {
   const rect = mapCanvas.getBoundingClientRect();
   let clientX, clientY;
+
   if (evt.touches && evt.touches[0]) {
     clientX = evt.touches[0].clientX;
     clientY = evt.touches[0].clientY;
@@ -779,6 +774,7 @@ function getCanvasPos(evt) {
     clientX = evt.clientX;
     clientY = evt.clientY;
   }
+
   return {
     x: ((clientX - rect.left) / rect.width) * mapCanvas.width,
     y: ((clientY - rect.top) / rect.height) * mapCanvas.height,
@@ -787,8 +783,9 @@ function getCanvasPos(evt) {
 
 function startDrawing(evt) {
   evt.preventDefault();
+  if (!mapCtx) return;
   drawing = true;
-  const pos = getCanvasPos(evt);
+  const pos = canvasPos(evt);
   mapCtx.strokeStyle = "rgba(255,0,0,0.9)";
   mapCtx.lineWidth = 3;
   mapCtx.lineCap = "round";
@@ -796,10 +793,10 @@ function startDrawing(evt) {
   mapCtx.moveTo(pos.x, pos.y);
 }
 
-function draw(evt) {
-  if (!drawing) return;
+function drawOnCanvas(evt) {
+  if (!drawing || !mapCtx) return;
   evt.preventDefault();
-  const pos = getCanvasPos(evt);
+  const pos = canvasPos(evt);
   mapCtx.lineTo(pos.x, pos.y);
   mapCtx.stroke();
 }
@@ -811,23 +808,22 @@ function stopDrawing(evt) {
 }
 
 function clearMapDrawing() {
-  if (!mapCanvas) return;
+  if (!mapCanvas || !mapCtx) return;
   mapCtx.clearRect(0, 0, mapCanvas.width, mapCanvas.height);
 }
 
 async function saveMapDrawing() {
-  if (!currentCongregationId || !currentMapTerritoryId) return;
+  if (!currentMapTerritory || !currentCongregationId) return;
   const dataUrl = mapCanvas.toDataURL("image/png");
+
   const terrRef = db
     .collection("congregations")
     .doc(currentCongregationId)
     .collection("territories")
-    .doc(currentMapTerritoryId);
+    .doc(String(currentMapTerritory.number));
 
   try {
-    await terrRef.update({
-      overlayDataUrl: dataUrl,
-    });
+    await terrRef.update({ overlayDataUrl: dataUrl });
     alert("Rabiscos salvos.");
   } catch (err) {
     console.error(err);
@@ -835,105 +831,103 @@ async function saveMapDrawing() {
   }
 }
 
-// =====================
+function openMapGoogle() {
+  if (!currentMapTerritory || !currentMapTerritory.googleMapsUrl) {
+    alert("Nenhum link do Google Maps configurado para este território.");
+    return;
+  }
+  window.open(currentMapTerritory.googleMapsUrl, "_blank");
+}
+
+// ======================
 // CONFIG MAPA
-// =====================
+// ======================
 
 function openMapConfigModal() {
-  if (!currentMapTerritoryData) return;
+  if (!currentMapTerritory || !currentCongregation) return;
+
   $("map-config-password").value = "";
   $("map-config-image-url").value =
-    currentMapTerritoryData.mapImageUrl || "";
+    currentMapTerritory.mapImageUrl || "";
   $("map-config-google-url").value =
-    currentMapTerritoryData.googleMapsUrl || "";
+    currentMapTerritory.googleMapsUrl || "";
+
   $("map-config-modal").classList.remove("hidden");
 }
 
 async function saveMapConfig() {
+  if (!currentMapTerritory || !currentCongregationId || !currentCongregation)
+    return;
+
   const pwd = $("map-config-password").value.trim();
   const imgUrl = $("map-config-image-url").value.trim();
   const gmapsUrl = $("map-config-google-url").value.trim();
 
-  if (!pwd) {
-    alert("Digite a senha do admin.");
+  const expected = currentCongregation.adminPassword || "1234";
+  if (!pwd || pwd !== expected) {
+    alert("Senha do admin incorreta.");
     return;
   }
-  if (!currentCongregation || pwd !== (currentCongregation.adminPassword || "1234")) {
-    alert("Senha incorreta.");
-    return;
-  }
-
-  if (!currentCongregationId || !currentMapTerritoryId) return;
 
   const terrRef = db
     .collection("congregations")
     .doc(currentCongregationId)
     .collection("territories")
-    .doc(currentMapTerritoryId);
+    .doc(String(currentMapTerritory.number));
 
   try {
     await terrRef.update({
       mapImageUrl: imgUrl,
       googleMapsUrl: gmapsUrl,
     });
+    currentMapTerritory.mapImageUrl = imgUrl;
+    currentMapTerritory.googleMapsUrl = gmapsUrl;
     $("map-config-modal").classList.add("hidden");
     alert("Mapa atualizado.");
   } catch (err) {
     console.error(err);
-    alert("Erro ao salvar configurações do mapa: " + err.message);
+    alert("Erro ao salvar mapa: " + err.message);
   }
 }
 
-// =====================
+// ======================
 // RELATÓRIOS
-// =====================
+// ======================
 
 function renderReports() {
-  const body = $("reports-body");
   const select = $("reports-month-select");
+  const body = $("reports-body");
 
-  // Gera lista de meses presentes
   const monthsSet = new Set();
   movementsCache.forEach((m) => {
-    if (m.timestamp) {
-      monthsSet.add(monthKey(m.timestamp.toDate()));
-    }
+    if (m.timestamp) monthsSet.add(monthKey(m.timestamp.toDate()));
   });
-
   const months = Array.from(monthsSet).sort().reverse();
 
   select.innerHTML = "";
-  if (!months.length) {
+  const optAll = document.createElement("option");
+  optAll.value = "all";
+  optAll.textContent = "Todos os meses";
+  select.appendChild(optAll);
+
+  months.forEach((mk) => {
+    const [y, m] = mk.split("-");
     const opt = document.createElement("option");
-    opt.value = "all";
-    opt.textContent = "Todos os meses";
+    opt.value = mk;
+    opt.textContent = `${m}/${y}`;
     select.appendChild(opt);
-  } else {
-    const optAll = document.createElement("option");
-    optAll.value = "all";
-    optAll.textContent = "Todos os meses";
-    select.appendChild(optAll);
+  });
 
-    months.forEach((mk) => {
-      const opt = document.createElement("option");
-      opt.value = mk;
-      const [y, m] = mk.split("-");
-      opt.textContent = `${m}/${y}`;
-      select.appendChild(opt);
-    });
-  }
-
-  select.onchange = () => renderReportsTable();
-
+  select.onchange = renderReportsTable;
   renderReportsTable();
 }
 
 function renderReportsTable() {
   const body = $("reports-body");
-  body.innerHTML = "";
-
   const select = $("reports-month-select");
   const monthFilter = select.value || "all";
+
+  body.innerHTML = "";
 
   let rows = movementsCache;
   if (monthFilter !== "all") {
@@ -964,13 +958,13 @@ function renderReportsTable() {
   });
 }
 
-// =====================
+// ======================
 // CONFIGURAÇÕES ADMIN
-// =====================
+// ======================
 
 async function saveAdminSettings() {
-  if (!currentRole || currentRole !== "admin") return;
-  if (!currentCongregationId) return;
+  if (currentRole !== "admin" || !currentCongregationId || !currentCongregation)
+    return;
 
   const name = $("settings-cong-name").value.trim();
   const pwd = $("settings-admin-password").value.trim() || "1234";
@@ -983,7 +977,7 @@ async function saveAdminSettings() {
     currentCongregation.name = name;
     currentCongregation.adminPassword = pwd;
     $("header-cong-name").textContent = name;
-    alert("Configurações de admin salvas.");
+    alert("Configurações salvas.");
   } catch (err) {
     console.error(err);
     alert("Erro ao salvar configurações: " + err.message);
@@ -1000,8 +994,8 @@ function adjustTerritoryCount(delta) {
 }
 
 async function saveTerritoryCount() {
-  if (!currentRole || currentRole !== "admin") return;
-  if (!currentCongregationId) return;
+  if (currentRole !== "admin" || !currentCongregationId || !currentCongregation)
+    return;
 
   const newCount = parseInt($("territory-count-label").textContent, 10);
   if (!newCount || newCount < 1) {
@@ -1056,20 +1050,23 @@ async function saveTerritoryCount() {
   }
 }
 
-// =====================
+// ======================
 // CONVITES
-// =====================
+// ======================
 
 function openInviteModal() {
   if (!currentCongregationId) {
     alert("Congregação não carregada.");
     return;
   }
+
   const baseUrl = window.location.origin + window.location.pathname;
   const link = `${baseUrl}?cid=${currentCongregationId}`;
+
   $("invite-link-input").value = link;
   $("invite-qr-image").src =
     "https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=" +
     encodeURIComponent(link);
+
   $("invite-modal").classList.remove("hidden");
 }
