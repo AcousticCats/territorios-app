@@ -1,428 +1,429 @@
-/************************************************************
- * CONFIGURAÇÃO DO FIREBASE
- ************************************************************/
+// app.js - Controle de Territórios
+
+// Configuração do Firebase
 const firebaseConfig = {
-  apiKey: "AIzaSyAgC7Kij9qrnq2CHzzMTRefp01jpdxGYiU",
-  authDomain: "controle-territ.firebaseapp.com",
-  projectId: "controle-territ",
-  storageBucket: "controle-territ.firebasestorage.app",
-  messagingSenderId: "669171529346",
-  appId: "1:669171529346:web:2a1a40afa0e3b58c28e69b",
-  measurementId: "G-VTKRFWLERS",
+  apiKey: "SUA_API_KEY",
+  authDomain: "SEU_DOMINIO.firebaseapp.com",
+  projectId: "SEU_PROJETO_ID",
+  storageBucket: "SEU_PROJETO_ID.appspot.com",
+  messagingSenderId: "SEU_SENDER_ID",
+  appId: "SEU_APP_ID"
 };
 
-// Garante que só inicializa uma vez
-if (!firebase.apps.length) {
-  firebase.initializeApp(firebaseConfig);
+// Inicializa Firebase (se a configuração estiver completa)
+let firebaseApp = null;
+let auth = null;
+let db = null;
+
+try {
+  if (firebaseConfig.apiKey && firebaseConfig.apiKey !== "SUA_API_KEY") {
+    firebaseApp = firebase.initializeApp(firebaseConfig);
+    auth = firebase.auth();
+    db = firebase.firestore();
+    console.log("Firebase inicializado com sucesso");
+  } else {
+    console.warn("Firebase não configurado. Configure suas credenciais em firebaseConfig.");
+  }
+} catch (error) {
+  console.error("Erro ao inicializar Firebase:", error);
 }
 
-const auth = firebase.auth();
-const db = firebase.firestore();
+// Estados da aplicação
+let currentUser = null;
+let currentCongregation = null;
+let currentUserRole = null; // 'admin' ou 'guest'
 
-/************************************************************
- * TUDO A PARTIR DAQUI SÓ RODA DEPOIS DO HTML ESTAR PRONTO
- ************************************************************/
-document.addEventListener("DOMContentLoaded", () => {
-  /**********************************************************
-   * ELEMENTOS DA INTERFACE
-   **********************************************************/
-  const loadingScreen = document.getElementById("loading-screen");
-  const modeScreen = document.getElementById("mode-screen");
-  const mainScreen = document.getElementById("main-screen");
-
-  const btnAdminLogin = document.getElementById("btn-admin-login");
-  const btnGuestEnter = document.getElementById("btn-guest-enter");
-  const guestNameInput = document.getElementById("guest-name-input");
-  const inviteCodeInput = document.getElementById("invite-code-input");
-
-  const headerCongName = document.getElementById("header-cong-name");
-  const headerUserInitials = document.getElementById("header-user-initials");
-
-  const profileNameInput = document.getElementById("profile-name-input");
-  const btnSaveProfileName = document.getElementById("btn-save-profile-name");
-
-  const adminSettingsSection = document.getElementById("admin-only-settings");
-  const settingsCongName = document.getElementById("settings-cong-name");
-  const settingsAdminPassword = document.getElementById("settings-admin-password");
-
-  const territoryCountLabel = document.getElementById("territory-count-label");
-
-  const btnLogout = document.getElementById("btn-logout");
-
-  const territoriesList = document.getElementById("territories-list");
-
-  const tabButtons = document.querySelectorAll(".tab-button");
-  const tabPanels = document.querySelectorAll(".tab-panel");
-
-  const filterChips = document.querySelectorAll(".chip-filter");
-
-  /**********************************************************
-   * ESTADO GLOBAL
-   **********************************************************/
-  let currentUser = null;
-  let currentCongId = null;
-  let userIsAdmin = false;
-  let unsubscribeTerritories = null;
-  let currentFilter = "all";
-  let profileName = localStorage.getItem("territorios_profile_name") || "";
-
-  /**********************************************************
-   * FUNÇÕES DE TELA
-   **********************************************************/
-  function showLoading() {
-    loadingScreen.classList.remove("hidden");
-    modeScreen.classList.add("hidden");
-    mainScreen.classList.add("hidden");
+// Elementos DOM - com verificação de existência
+function getElement(id) {
+  const element = document.getElementById(id);
+  if (!element) {
+    console.warn(`Elemento #${id} não encontrado`);
   }
+  return element;
+}
 
-  function showMode() {
-    loadingScreen.classList.add("hidden");
-    modeScreen.classList.remove("hidden");
-    mainScreen.classList.add("hidden");
+// Screens
+const screens = {
+  loading: getElement('loading-screen'),
+  mode: getElement('mode-screen'),
+  main: getElement('main-screen')
+};
+
+// Botões com verificação
+const buttons = {
+  adminLogin: getElement('btn-admin-login'),
+  guestEnter: getElement('btn-guest-enter'),
+  logout: getElement('btn-logout'),
+  saveProfileName: getElement('btn-save-profile-name'),
+  territoryPlus: getElement('btn-territory-plus'),
+  territoryMinus: getElement('btn-territory-minus')
+};
+
+// Inputs
+const inputs = {
+  inviteCode: getElement('invite-code-input'),
+  guestName: getElement('guest-name-input'),
+  profileName: getElement('profile-name-input'),
+  congName: getElement('settings-cong-name'),
+  adminPassword: getElement('settings-admin-password')
+};
+
+// Outros elementos
+const headerCongName = getElement('header-cong-name');
+const headerUserInitials = getElement('header-user-initials');
+const adminOnlySettings = getElement('admin-only-settings');
+const territoriesList = getElement('territories-list');
+const territoryCountLabel = getElement('territory-count-label');
+
+// Tab buttons
+const tabButtons = document.querySelectorAll('.tab-button');
+const tabPanels = document.querySelectorAll('.tab-panel');
+
+// Chip filters
+const filterChips = document.querySelectorAll('.chip-filter');
+
+// FUNÇÕES AUXILIARES COM VERIFICAÇÃO
+function showScreen(screenElement) {
+  if (!screenElement) return;
+  
+  // Esconder todas as telas
+  Object.values(screens).forEach(screen => {
+    if (screen) screen.classList.add('hidden');
+  });
+  
+  // Mostrar tela desejada
+  screenElement.classList.remove('hidden');
+}
+
+function showElement(element) {
+  if (element) element.classList.remove('hidden');
+}
+
+function hideElement(element) {
+  if (element) element.classList.add('hidden');
+}
+
+function setElementText(element, text) {
+  if (element) element.textContent = text;
+}
+
+function addClickListener(element, handler) {
+  if (element) {
+    element.addEventListener('click', handler);
   }
+}
 
-  function showMain() {
-    loadingScreen.classList.add("hidden");
-    modeScreen.classList.add("hidden");
-    mainScreen.classList.remove("hidden");
+// Inicialização segura
+function initApp() {
+  console.log("Inicializando aplicação...");
+  
+  // Mostrar tela de escolha após carregamento
+  setTimeout(() => {
+    showScreen(screens.mode);
+  }, 800);
+  
+  // Configurar listeners somente se os elementos existirem
+  if (buttons.adminLogin) {
+    buttons.adminLogin.addEventListener('click', handleAdminLogin);
   }
-
-  function setTab(tab) {
-    tabButtons.forEach((btn) => {
-      btn.classList.toggle("active", btn.dataset.tab === tab);
-    });
-    tabPanels.forEach((panel) => {
-      panel.classList.toggle("active", panel.id === `tab-${tab}`);
-    });
+  
+  if (buttons.guestEnter) {
+    buttons.guestEnter.addEventListener('click', handleGuestEnter);
   }
-
-  /**********************************************************
-   * INICIALIZAÇÃO DO PERFIL
-   **********************************************************/
-  if (profileName) {
-    profileNameInput.value = profileName;
-    headerUserInitials.textContent = initialsFromName(profileName);
+  
+  if (buttons.logout) {
+    buttons.logout.addEventListener('click', handleLogout);
   }
-
-  function initialsFromName(name) {
-    if (!name) return "S";
-    const parts = name.trim().split(/\s+/);
-    if (parts.length === 1) return parts[0][0].toUpperCase();
-    return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+  
+  if (buttons.saveProfileName) {
+    buttons.saveProfileName.addEventListener('click', handleSaveProfileName);
   }
-
-  /**********************************************************
-   * ABAS
-   **********************************************************/
-  tabButtons.forEach((btn) => {
-    btn.addEventListener("click", () => {
-      setTab(btn.dataset.tab);
-    });
-  });
-
-  /**********************************************************
-   * FILTROS
-   **********************************************************/
-  filterChips.forEach((chip) => {
-    chip.addEventListener("click", () => {
-      filterChips.forEach((c) => c.classList.remove("active"));
-      chip.classList.add("active");
-      currentFilter = chip.dataset.filter;
-      // Re-render depois que estados forem carregados
-      // (renderTerritorios usa currentFilter)
-    });
-  });
-
-  /**********************************************************
-   * BOTÃO SALVAR NOME
-   **********************************************************/
-  btnSaveProfileName.addEventListener("click", () => {
-    const name = profileNameInput.value.trim();
-    if (!name) {
-      alert("Digite seu nome.");
-      return;
-    }
-    profileName = name;
-    localStorage.setItem("territorios_profile_name", name);
-    headerUserInitials.textContent = initialsFromName(name);
-    alert("Nome salvo.");
-  });
-
-  /**********************************************************
-   * LOGIN ANCIÃO (GOOGLE)
-   **********************************************************/
-  btnAdminLogin.addEventListener("click", async () => {
-    try {
-      showLoading();
-      const provider = new firebase.auth.GoogleAuthProvider();
-      const result = await auth.signInWithPopup(provider);
-
-      currentUser = result.user;
-      currentCongId = currentUser.uid;
-      userIsAdmin = true;
-
-      await garantirCongregacaoCriada(currentCongId, currentUser.displayName || "Congregação");
-
-      await carregarCongregacao();
-      showMain();
-    } catch (err) {
-      console.error(err);
-      alert("Erro ao entrar com Google.");
-      showMode();
-    }
-  });
-
-  /**********************************************************
-   * LOGIN PUBLICADOR (CONVIDADO)
-   **********************************************************/
-  btnGuestEnter.addEventListener("click", async () => {
-    const guestName = guestNameInput.value.trim();
-    const rawCode = inviteCodeInput.value.trim();
-
-    if (!guestName || !rawCode) {
-      alert("Preencha o nome e o código/link da congregação.");
-      return;
-    }
-
-    // Extrai possível cid de um link (?cid=xxx) ou usa o código direto
-    let cid = rawCode;
-    const match = rawCode.match(/[?&]cid=([a-zA-Z0-9_-]+)/);
-    if (match) {
-      cid = match[1];
-    }
-
-    try {
-      showLoading();
-      // Login anônimo (já está ativado no Firebase)
-      await auth.signInAnonymously();
-      currentUser = auth.currentUser;
-      currentCongId = cid;
-      userIsAdmin = false;
-
-      profileName = guestName;
-      localStorage.setItem("territorios_profile_name", guestName);
-      profileNameInput.value = guestName;
-      headerUserInitials.textContent = initialsFromName(guestName);
-
-      await carregarCongregacao();
-      showMain();
-    } catch (err) {
-      console.error(err);
-      alert("Erro ao entrar como convidado. Verifique se o login anônimo está ativado no Firebase.");
-      showMode();
-    }
-  });
-
-  /**********************************************************
-   * LOGOUT
-   **********************************************************/
-  btnLogout.addEventListener("click", async () => {
-    try {
-      showLoading();
-      if (unsubscribeTerritories) unsubscribeTerritories();
-      unsubscribeTerritories = null;
-      currentUser = null;
-      currentCongId = null;
-      userIsAdmin = false;
-      await auth.signOut();
-      showMode();
-    } catch (err) {
-      console.error(err);
-      alert("Erro ao sair.");
-      showMain();
-    }
-  });
-
-  /**********************************************************
-   * GARANTIR CONGREGAÇÃO CRIADA (ANCIÃO)
-   **********************************************************/
-  async function garantirCongregacaoCriada(congId, ownerName) {
-    const congRef = db.collection("congregations").doc(congId);
-    const doc = await congRef.get();
-    if (doc.exists) return;
-
-    const dataBase = {
-      name: `Congregação de ${ownerName}`,
-      adminPassword: "1234",
-      territoryCount: 25,
-      createdAt: firebase.firestore.FieldValue.serverTimestamp(),
-    };
-
-    const batch = db.batch();
-    batch.set(congRef, dataBase);
-
-    const terrCol = congRef.collection("territories");
-    for (let i = 1; i <= 25; i++) {
-      const terrRef = terrCol.doc(String(i));
-      batch.set(terrRef, {
-        number: i,
-        active: true,
-        in_use: false,
-        last_user: "",
-        last_action: "",
-        last_date: "",
-        notes: "",
-        map_image_url: "",
-        map_google_url: "",
+  
+  // Inicializar tabs
+  if (tabButtons.length > 0) {
+    tabButtons.forEach(button => {
+      button.addEventListener('click', () => {
+        const tabId = button.getAttribute('data-tab');
+        switchTab(tabId);
       });
-    }
-
-    await batch.commit();
+    });
   }
+  
+  // Inicializar filtros
+  if (filterChips.length > 0) {
+    filterChips.forEach(chip => {
+      chip.addEventListener('click', () => {
+        filterChips.forEach(c => c.classList.remove('active'));
+        chip.classList.add('active');
+        // Aqui você filtraria a lista de territórios
+      });
+    });
+  }
+  
+  console.log("Aplicação inicializada");
+}
 
-  /**********************************************************
-   * CARREGAR CONGREGAÇÃO + TERRITÓRIOS
-   **********************************************************/
-  async function carregarCongregacao() {
-    if (!currentCongId) {
-      alert("Nenhuma congregação selecionada.");
-      showMode();
-      return;
-    }
+// HANDLERS
+async function handleAdminLogin() {
+  console.log("Tentando login como admin...");
+  
+  if (!auth) {
+    alert("Firebase não configurado. Configure as credenciais no arquivo app.js");
+    return;
+  }
+  
+  try {
+    const provider = new firebase.auth.GoogleAuthProvider();
+    const result = await auth.signInWithPopup(provider);
+    currentUser = result.user;
+    currentUserRole = 'admin';
+    
+    // Aqui você criaria/recuperaria a congregação
+    await initializeCongregation();
+    
+    showScreen(screens.main);
+    updateUI();
+  } catch (error) {
+    console.error("Erro no login:", error);
+    alert("Erro ao fazer login: " + error.message);
+  }
+}
 
-    const congRef = db.collection("congregations").doc(currentCongId);
+async function handleGuestEnter() {
+  console.log("Tentando entrar como convidado...");
+  
+  const inviteCode = inputs.inviteCode ? inputs.inviteCode.value.trim() : '';
+  const guestName = inputs.guestName ? inputs.guestName.value.trim() : '';
+  
+  if (!inviteCode || !guestName) {
+    alert("Por favor, preencha o código da congregação e seu nome.");
+    return;
+  }
+  
+  // Aqui você validaria o código de convite
+  currentUserRole = 'guest';
+  
+  // Simulação - em produção você buscaria do Firebase
+  currentCongregation = {
+    id: inviteCode,
+    name: "Congregação " + inviteCode.substring(0, 5)
+  };
+  
+  // Salvar nome do perfil localmente
+  localStorage.setItem('guestName', guestName);
+  
+  showScreen(screens.main);
+  updateUI();
+}
+
+function handleLogout() {
+  if (auth && currentUser) {
+    auth.signOut();
+  }
+  
+  // Limpar estado
+  currentUser = null;
+  currentCongregation = null;
+  currentUserRole = null;
+  
+  // Limpar inputs
+  if (inputs.inviteCode) inputs.inviteCode.value = '';
+  if (inputs.guestName) inputs.guestName.value = '';
+  
+  showScreen(screens.mode);
+}
+
+function handleSaveProfileName() {
+  const newName = inputs.profileName ? inputs.profileName.value.trim() : '';
+  
+  if (!newName) {
+    alert("Por favor, digite um nome.");
+    return;
+  }
+  
+  localStorage.setItem('guestName', newName);
+  alert("Nome salvo com sucesso!");
+  updateUI();
+}
+
+async function initializeCongregation() {
+  if (!currentUser || !db) return;
+  
+  try {
+    // Verificar se já existe congregação para este usuário
+    const congRef = db.collection('congregations').doc(currentUser.uid);
     const congDoc = await congRef.get();
-    if (!congDoc.exists) {
-      alert("Congregação não encontrada. Verifique o código/link.");
-      showMode();
-      return;
+    
+    if (congDoc.exists) {
+      currentCongregation = congDoc.data();
+    } else {
+      // Criar nova congregação
+      currentCongregation = {
+        id: currentUser.uid,
+        name: "Minha Congregação",
+        adminUid: currentUser.uid,
+        territoryCount: 25,
+        createdAt: firebase.firestore.FieldValue.serverTimestamp()
+      };
+      
+      await congRef.set(currentCongregation);
     }
-
-    const data = congDoc.data();
-
-    headerCongName.textContent = data.name || "";
-    settingsCongName.value = data.name || "";
-    settingsAdminPassword.value = data.adminPassword || "1234";
-    territoryCountLabel.textContent = data.territoryCount || 25;
-
-    adminSettingsSection.classList.toggle("hidden", !userIsAdmin);
-
-    if (unsubscribeTerritories) unsubscribeTerritories();
-
-    unsubscribeTerritories = congRef
-      .collection("territories")
-      .orderBy("number", "asc")
-      .onSnapshot((snap) => {
-        const lista = [];
-        snap.forEach((doc) => lista.push({ id: doc.id, ...doc.data() }));
-        renderTerritorios(lista);
-      });
+  } catch (error) {
+    console.error("Erro ao inicializar congregação:", error);
   }
+}
 
-  /**********************************************************
-   * RENDERIZAR TERRITÓRIOS
-   **********************************************************/
-  function renderTerritorios(lista) {
-    territoriesList.innerHTML = "";
-
-    let filtrados = lista.filter((t) => t.active !== false);
-
-    if (currentFilter === "in_use") {
-      filtrados = filtrados.filter((t) => t.in_use);
-    } else if (currentFilter === "free") {
-      filtrados = filtrados.filter((t) => !t.in_use);
-    }
-
-    if (!filtrados.length) {
-      territoriesList.innerHTML = "<p class='small'>Nenhum território cadastrado.</p>";
-      return;
-    }
-
-    filtrados.forEach((t) => {
-      const card = document.createElement("div");
-      card.className = "territory-card";
-
-      const hasNotes = t.notes && t.notes.trim() !== "";
-
-      card.innerHTML = `
-        <div class="territory-header">
-          <div class="territory-number">Território ${t.number}</div>
-          <div class="territory-status ${t.in_use ? "status-inuse" : "status-free"}">
-            ${t.in_use ? "Em uso" : "Livre"}
-          </div>
-        </div>
-        <div class="territory-buttons">
-          <button class="btn ${t.in_use ? "danger" : "primary"} small" data-action="toggle" data-id="${t.number}">
-            ${t.in_use ? "Devolver" : "Pegar"}
-          </button>
-          <button class="btn secondary small" data-action="map" data-id="${t.number}">
-            Mapa
-          </button>
-          <button class="btn small ${hasNotes ? "notes-alert" : ""}" data-action="notes" data-id="${t.number}">
-            Obs
-          </button>
-        </div>
-        <div class="territory-info">
-          <span>${t.last_action || "-"} ${t.last_user || ""}</span>
-          <span>${t.last_date || ""}</span>
-        </div>
-      `;
-
-      territoriesList.appendChild(card);
-    });
+// UI FUNCTIONS
+function updateUI() {
+  // Atualizar cabeçalho
+  if (currentCongregation && headerCongName) {
+    headerCongName.textContent = currentCongregation.name;
   }
-
-  /**********************************************************
-   * CLIQUES NA LISTA DE TERRITÓRIOS
-   **********************************************************/
-  territoriesList.addEventListener("click", async (e) => {
-    const btn = e.target.closest("button");
-    if (!btn) return;
-
-    const action = btn.dataset.action;
-    const id = btn.dataset.id;
-    if (!action || !id) return;
-
-    const terrRef = db
-      .collection("congregations")
-      .doc(currentCongId)
-      .collection("territories")
-      .doc(String(id));
-
-    const terrSnap = await terrRef.get();
-    if (!terrSnap.exists) {
-      alert("Território não encontrado.");
-      return;
+  
+  // Atualizar iniciais do usuário
+  let initials = "S";
+  if (currentUserRole === 'admin' && currentUser) {
+    initials = currentUser.displayName ? 
+      currentUser.displayName.charAt(0).toUpperCase() : "A";
+  } else if (currentUserRole === 'guest') {
+    const savedName = localStorage.getItem('guestName') || "Publicador";
+    initials = savedName.charAt(0).toUpperCase();
+  }
+  
+  if (headerUserInitials) {
+    headerUserInitials.textContent = initials;
+  }
+  
+  // Mostrar/esconder seções de admin
+  if (adminOnlySettings) {
+    if (currentUserRole === 'admin') {
+      showElement(adminOnlySettings);
+    } else {
+      hideElement(adminOnlySettings);
     }
+  }
+  
+  // Atualizar contador de territórios
+  if (currentCongregation && territoryCountLabel) {
+    territoryCountLabel.textContent = currentCongregation.territoryCount || 25;
+  }
+  
+  // Preencher inputs de perfil
+  if (inputs.profileName) {
+    const savedName = localStorage.getItem('guestName') || "";
+    inputs.profileName.value = savedName;
+  }
+  
+  // Carregar territórios
+  loadTerritories();
+}
 
-    const terr = terrSnap.data();
+function switchTab(tabId) {
+  // Atualizar botões das tabs
+  tabButtons.forEach(button => {
+    const isActive = button.getAttribute('data-tab') === tabId;
+    button.classList.toggle('active', isActive);
+  });
+  
+  // Mostrar painel correspondente
+  tabPanels.forEach(panel => {
+    const isActive = panel.id === `tab-${tabId}`;
+    panel.classList.toggle('active', isActive);
+  });
+}
 
-    if (action === "toggle") {
-      if (!profileName) {
-        alert("Defina o seu nome na aba Configurar antes de pegar/devolver.");
-        setTab("settings");
-        return;
-      }
+function loadTerritories() {
+  if (!territoriesList) return;
+  
+  // Limpar lista
+  territoriesList.innerHTML = '';
+  
+  // Simulação de territórios
+  const territories = [
+    { id: 1, number: "001", status: "free", lastUsed: "15/01/2024", publisher: null },
+    { id: 2, number: "002", status: "in_use", lastUsed: "20/01/2024", publisher: "João Silva" },
+    { id: 3, number: "003", status: "free", lastUsed: "10/01/2024", publisher: null },
+    { id: 4, number: "004", status: "in_use", lastUsed: "22/01/2024", publisher: "Maria Santos" }
+  ];
+  
+  territories.forEach(territory => {
+    const card = document.createElement('div');
+    card.className = 'territory-card';
+    
+    const statusClass = territory.status === 'free' ? 'status-free' : 'status-inuse';
+    const statusText = territory.status === 'free' ? 'Livre' : 'Em uso';
+    const publisherText = territory.publisher ? 
+      `Com: ${territory.publisher}` : 
+      `Último uso: ${territory.lastUsed}`;
+    
+    card.innerHTML = `
+      <div class="territory-header">
+        <span class="territory-title">Território ${territory.number}</span>
+        <span class="territory-status ${statusClass}">
+          <span class="status-dot"></span>
+          ${statusText}
+        </span>
+      </div>
+      <div class="territory-meta">${publisherText}</div>
+      <div class="territory-actions">
+        ${territory.status === 'free' ? 
+          '<button class="btn primary small" onclick="takeTerritory(' + territory.id + ')">Pegar</button>' : 
+          '<button class="btn secondary small" onclick="returnTerritory(' + territory.id + ')">Devolver</button>'
+        }
+        <button class="btn ghost small" onclick="viewMap(' + territory.id + ')">
+          <span class="button-icon">🗺️</span> Mapa
+        </button>
+      </div>
+    `;
+    
+    territoriesList.appendChild(card);
+  });
+}
 
-      const now = new Date().toLocaleString("pt-BR");
-      if (terr.in_use) {
-        await terrRef.update({
-          in_use: false,
-          last_user: profileName,
-          last_action: "Devolvido por",
-          last_date: now,
+// Funções globais para os botões dos territórios
+window.takeTerritory = function(id) {
+  alert(`Pegar território ${id} - Em desenvolvimento`);
+};
+
+window.returnTerritory = function(id) {
+  alert(`Devolver território ${id} - Em desenvolvimento`);
+};
+
+window.viewMap = function(id) {
+  alert(`Ver mapa do território ${id} - Em desenvolvimento`);
+};
+
+// INICIAR APLICAÇÃO
+document.addEventListener('DOMContentLoaded', () => {
+  console.log("DOM carregado, iniciando app...");
+  
+  // Verificar se há usuário logado
+  if (auth) {
+    auth.onAuthStateChanged(user => {
+      if (user) {
+        currentUser = user;
+        currentUserRole = 'admin';
+        initializeCongregation().then(() => {
+          showScreen(screens.main);
+          updateUI();
         });
       } else {
-        await terrRef.update({
-          in_use: true,
-          last_user: profileName,
-          last_action: "Pegado por",
-          last_date: now,
-        });
+        initApp();
       }
-    }
-
-    if (action === "notes") {
-      alert("Tela de observações será implementada depois que o básico estiver redondo.");
-    }
-
-    if (action === "map") {
-      alert("Tela de mapa e rabiscos também entra na próxima etapa.");
-    }
-  });
-
-  /**********************************************************
-   * ESTADO INICIAL
-   **********************************************************/
-  showMode();
+    });
+  } else {
+    initApp();
+  }
 });
+
+// Manipular erro de recarregamento de página
+window.addEventListener('beforeunload', () => {
+  console.log("Página sendo recarregada...");
+});
+
+// Para evitar erros de extensão no cache
+if (window.chrome && chrome.runtime) {
+  chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+    console.log("Mensagem da extensão:", request);
+  });
+}
