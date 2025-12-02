@@ -2,12 +2,13 @@
 
 // Configuração do Firebase
 const firebaseConfig = {
-  apiKey: "SUA_API_KEY",
-  authDomain: "SEU_DOMINIO.firebaseapp.com",
-  projectId: "SEU_PROJETO_ID",
-  storageBucket: "SEU_PROJETO_ID.appspot.com",
-  messagingSenderId: "SEU_SENDER_ID",
-  appId: "SEU_APP_ID"
+  apiKey: "AIzaSyAgC7Kij9qrnq2CHzzMTRefp01jpdxGYiU",
+  authDomain: "controle-territ.firebaseapp.com",
+  projectId: "controle-territ",
+  storageBucket: "controle-territ.firebasestorage.app",
+  messagingSenderId: "669171529346",
+  appId: "1:669171529346:web:2a1a40afa0e3b58c28e69b",
+  measurementId: "G-VTKRFWLERS"
 };
 
 // Inicializa Firebase (sempre que a configuração estiver definida)
@@ -16,9 +17,7 @@ let auth = null;
 let db = null;
 
 try {
-  // Sempre inicializa o Firebase usando a configuração fornecida. A validação de
-  // "SUA_API_KEY" foi removida para evitar que a aplicação pare caso os valores
-  // sejam alterados manualmente no código. Quaisquer erros serão capturados no catch.
+  // Sempre inicializa o Firebase usando a configuração fornecida. Quaisquer erros serão capturados no catch.
   firebaseApp = firebase.initializeApp(firebaseConfig);
   auth = firebase.auth();
   db = firebase.firestore();
