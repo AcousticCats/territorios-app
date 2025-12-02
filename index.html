@@ -1,24 +1,19 @@
-<!-- Firebase App -->
-<script src="https://www.gstatic.com/firebasejs/10.13.1/firebase-app-compat.js"></script>
-
-<!-- Firebase Auth -->
-<script src="https://www.gstatic.com/firebasejs/10.13.1/firebase-auth-compat.js"></script>
-
-<!-- Firestore -->
-<script src="https://www.gstatic.com/firebasejs/10.13.1/firebase-firestore-compat.js"></script>
-<script src="app.js"></script>
-<!-- rebuild -->
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
   <meta charset="UTF-8" />
   <title>Controle de Territórios</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
+
   <link rel="stylesheet" href="styles.css" />
-  <!-- Firebase SDK (compat para facilitar) -->
+
+  <!-- Firebase compat -->
   <script src="https://www.gstatic.com/firebasejs/10.13.1/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.13.1/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.13.1/firebase-firestore-compat.js"></script>
+
+  <!-- Seu script principal (carrega após o DOM, evitando tela branca) -->
+  <script src="app.js" defer></script>
 </head>
 <body>
   <div id="app">
@@ -29,32 +24,25 @@
       <p>Carregando aplicativo...</p>
     </div>
 
-    <!-- TELA DE ESCOLHA (MESTRE ou CONVIDADO) -->
+    <!-- TELA MODO -->
     <div id="mode-screen" class="screen centered hidden">
       <h1 class="app-title">Controle de Territórios</h1>
       <p class="subtitle">Escolha como deseja entrar:</p>
 
-      <button id="btn-admin-login" class="btn primary full">
-        Entrar como Ancião (Google)
-      </button>
+      <button id="btn-admin-login" class="btn primary full">Entrar como Ancião (Google)</button>
 
-      <div class="divider">
-        <span>ou</span>
-      </div>
+      <div class="divider"><span>ou</span></div>
 
       <div class="card">
         <h2>Convite recebido?</h2>
         <p>Digite o código ou abra o link enviado pelo ancião.</p>
         <input id="invite-code-input" class="input" placeholder="Cole aqui o link ou código da congregação" />
         <input id="guest-name-input" class="input" placeholder="Seu nome para registrar nos territórios" />
-        <button id="btn-guest-enter" class="btn secondary full">
-          Entrar como publicador
-        </button>
+        <button id="btn-guest-enter" class="btn secondary full">Entrar como publicador</button>
       </div>
 
       <p class="hint">
-        Dica: o ancião deve entrar primeiro com Google para criar a congregação
-        e gerar o link de convite.
+        Dica: o ancião deve entrar primeiro com Google para criar a congregação e gerar o link de convite.
       </p>
     </div>
 
@@ -118,7 +106,7 @@
       </div>
     </div>
 
-    <!-- MODAL QR/LINK CONVITE -->
+    <!-- MODAL INVITE -->
     <div id="invite-modal" class="modal-backdrop hidden">
       <div class="modal">
         <h2>Convidar Publicadores</h2>
@@ -126,7 +114,7 @@
         <input id="invite-link-input" class="input" readonly />
         <button id="btn-copy-invite" class="btn secondary full">Copiar link</button>
 
-        <p class="qr-title">QR Code (abre o mesmo link):</p>
+        <p class="qr-title">QR Code:</p>
         <img id="invite-qr-image" class="qr-image" alt="QR Code do convite" />
 
         <div class="modal-actions">
@@ -136,7 +124,7 @@
       </div>
     </div>
 
-    <!-- TELA PRINCIPAL DO APP -->
+    <!-- TELA PRINCIPAL -->
     <div id="main-screen" class="screen hidden">
       <header class="app-header">
         <div>
@@ -148,14 +136,14 @@
         </div>
       </header>
 
-      <!-- BARRA DE ABAS -->
+      <!-- ABAS -->
       <nav class="tabs">
         <button data-tab="territories" class="tab-button active">Territórios</button>
         <button data-tab="reports" class="tab-button">Relatórios</button>
         <button data-tab="settings" class="tab-button">Configurar</button>
       </nav>
 
-      <!-- CONTEÚDO DAS ABAS -->
+      <!-- CONTEÚDOS -->
       <main class="tab-content">
 
         <!-- ABA TERRITÓRIOS -->
@@ -167,28 +155,19 @@
             <button class="chip chip-filter" data-filter="less_used">Menos usados</button>
           </div>
 
-          <div id="territories-list" class="territory-list">
-            <!-- Cartões de territórios serão inseridos via JS -->
-          </div>
+          <div id="territories-list" class="territory-list"></div>
         </section>
 
         <!-- ABA RELATÓRIOS -->
         <section id="tab-reports" class="tab-panel">
           <div class="card">
             <h2>Relatórios de Movimentação</h2>
-            <p>Histórico de uso dos cartões de território.</p>
-
             <div class="reports-header">
-              <select id="reports-month-select" class="input">
-                <!-- Preenchido via JS -->
-              </select>
-              <button id="btn-reports-print" class="btn secondary small">
-                Imprimir / Salvar PDF
-              </button>
+              <select id="reports-month-select" class="input"></select>
+              <button id="btn-reports-print" class="btn secondary small">Imprimir / PDF</button>
             </div>
 
             <div class="table-card">
-              <h3 id="reports-title">Registros recentes</h3>
               <table class="table">
                 <thead>
                   <tr>
@@ -198,9 +177,7 @@
                     <th>Ação</th>
                   </tr>
                 </thead>
-                <tbody id="reports-body">
-                  <!-- Registros via JS -->
-                </tbody>
+                <tbody id="reports-body"></tbody>
               </table>
             </div>
           </div>
@@ -210,68 +187,47 @@
         <section id="tab-settings" class="tab-panel">
           <div class="card">
             <h2>Seu Perfil</h2>
-            <p class="small">
-              Este nome será usado quando você pegar ou devolver territórios.
-            </p>
             <input id="profile-name-input" class="input" placeholder="Seu nome" />
-            <button id="btn-save-profile-name" class="btn primary small">
-              Salvar nome
-            </button>
+            <button id="btn-save-profile-name" class="btn primary small">Salvar nome</button>
           </div>
 
           <div id="admin-only-settings" class="admin-section hidden">
             <div class="card">
-              <h2>Geral (Admin)</h2>
+              <h2>Configurações Gerais</h2>
               <label class="label">Nome da Congregação</label>
               <input id="settings-cong-name" class="input" />
 
-              <label class="label">Senha de Admin (padrão: 1234)</label>
+              <label class="label">Senha Admin</label>
               <input id="settings-admin-password" type="password" class="input" />
 
-              <button id="btn-save-admin-settings" class="btn primary small">
-                Salvar Admin
-              </button>
+              <button id="btn-save-admin-settings" class="btn primary small">Salvar</button>
             </div>
 
             <div class="card">
               <h2>Territórios</h2>
-              <p class="small">Quantidade de territórios desta congregação.</p>
               <div class="territory-count-row">
                 <button id="btn-territory-minus" class="btn circle">-</button>
                 <span id="territory-count-label">25</span>
                 <button id="btn-territory-plus" class="btn circle">+</button>
               </div>
-              <p class="small">
-                As alterações são aplicadas ao salvar. Novos territórios são criados com
-                status livre; reduzir o número desativa os últimos territórios.
-              </p>
-              <button id="btn-save-territory-count" class="btn secondary small">
-                Salvar quantidade
-              </button>
+              <button id="btn-save-territory-count" class="btn secondary small">Salvar quantidade</button>
             </div>
 
             <div class="card">
               <h2>Convidar Publicadores</h2>
-              <p class="small">
-                Compartilhe o link ou o QR Code para que os publicadores entrem na
-                sua congregação.
-              </p>
-              <button id="btn-open-invite" class="btn primary small">Gerar link e QR</button>
+              <button id="btn-open-invite" class="btn primary small">Gerar link</button>
             </div>
           </div>
 
           <div class="card">
             <h2>Sair</h2>
-            <button id="btn-logout" class="btn danger small">
-              Sair do aplicativo
-            </button>
+            <button id="btn-logout" class="btn danger small">Sair do aplicativo</button>
           </div>
         </section>
 
       </main>
     </div>
-  </div>
 
-  <script src="app.js"></script>
+  </div>
 </body>
 </html>
