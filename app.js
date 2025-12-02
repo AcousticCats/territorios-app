@@ -1,13 +1,16 @@
 // app.js - Controle de Territórios
 
 // Configuração do Firebase
+// Firebase configuration generated from the Firebase console (see project settings).
+// Measurement ID is included for analytics; remove if not needed.
 const firebaseConfig = {
-  apiKey: "SUA_API_KEY",
-  authDomain: "SEU_DOMINIO.firebaseapp.com",
-  projectId: "SEU_PROJETO_ID",
-  storageBucket: "SEU_PROJETO_ID.appspot.com",
-  messagingSenderId: "SEU_SENDER_ID",
-  appId: "SEU_APP_ID"
+  apiKey: "AIzaSyAgC7Kij9qrnq2CHzzMTRefp01jpdxGYiU",
+  authDomain: "controle-territ.firebaseapp.com",
+  projectId: "controle-territ",
+  storageBucket: "controle-territ.firebasestorage.app",
+  messagingSenderId: "669171529346",
+  appId: "1:669171529346:web:2a1a40afa0e3b58c28e69b",
+  measurementId: "G-VTKRFWLERS"
 };
 
 // Inicializa Firebase (se a configuração estiver completa)
