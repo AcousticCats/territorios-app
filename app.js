@@ -5,7 +5,11 @@ const firebaseConfig = {
   apiKey: "AIzaSyAgC7Kij9qrnq2CHzzMTRefp01jpdxGYiU",
   authDomain: "controle-territ.firebaseapp.com",
   projectId: "controle-territ",
-  storageBucket: "controle-territ.firebasestorage.app",
+  // O bucket de armazenamento padrão do Firebase deve usar o domínio appspot.com
+  // O valor anterior (controle-territ.firebasestorage.app) não é válido e pode
+  // causar comportamentos inesperados. Consulte o console do Firebase para o
+  // bucket correto.
+  storageBucket: "controle-territ.appspot.com",
   messagingSenderId: "669171529346",
   appId: "1:669171529346:web:2a1a40afa0e3b58c28e69b",
   measurementId: "G-VTKRFWLERS"
