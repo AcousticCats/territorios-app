@@ -37,8 +37,15 @@ body {
 
 /* SCREENS */
 
+/*
+  By default, screens should be visible. The `.hidden` class is used to hide
+  specific screens when needed. Previously `.screen` set `display: none`, which
+  caused screens that did not also have `.centered` or `.active` to remain
+  invisible even after removing `.hidden`. To fix this, `.screen` defaults to
+  `display: block`, while `.hidden` continues to hide the element.
+*/
 .screen {
-  display: none;
+  display: block;
   padding: 16px;
 }
 
